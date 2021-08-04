@@ -5,6 +5,7 @@ output:
     orientation: rows
     social: menu
     source_code: embed
+runtime: shiny
 ---
 
 ```{r setup, include=FALSE}
@@ -15,6 +16,60 @@ library(flexdashboard)
 library(dplyr)
 library(data.table)
 library(plotly)
+library(tidyr)
+abbr <- strsplit("AL – Alabama
+AK – Alaska
+AZ – Arizona
+AR – Arkansas
+CA – California
+CO – Colorado
+CT – Connecticut
+DE – Delaware
+FL – Florida
+GA – Georgia
+HI – Hawaii
+ID – Idaho
+IL – Illinois
+IN – Indiana
+IA – Iowa
+KS – Kansas
+KY – Kentucky
+LA – Louisiana
+ME – Maine
+MD – Maryland
+MA – Massachusetts
+MI – Michigan
+MN – Minnesota
+MS – Mississippi
+MO – Missouri
+MT – Montana
+NE – Nebraska
+NV – Nevada
+NH – New Hampshire
+NJ – New Jersey
+NM – New Mexico
+NY – New York
+NC – North Carolina
+ND – North Dakota
+OH – Ohio
+OK – Oklahoma
+OR – Oregon
+PA – Pennsylvania
+RI – Rhode Island
+SC – South Carolina
+SD – South Dakota
+TN – Tennessee
+TX – Texas
+UT – Utah
+VT – Vermont
+VA – Virginia
+WA – Washington
+WV – West Virginia
+WI – Wisconsin
+WY – Wyoming", "\\n") %>%
+  unlist()
+abbr <- tibble(data = abbr) %>%
+  separate(data, into = c("Abbr", "State"), sep = " – ")
 ```
 
 Inputs {.sidebar}
@@ -22,8 +77,9 @@ Inputs {.sidebar}
 ```{r, echo = F}
 ## R naught
 ## R = R_0^(generation)
-sliderInput("R0", "R-Naught", min = 0, max = 20, value = 2, round = FALSE, step = .01)
+sliderInput("R0", "R-Naught", min = 0, max = 20, value = 2.5, round = FALSE, step = .01)
 sliderInput("gens", "n-Generations", min = 1, max = 10, round = TRUE, value = 4)
+
 ```
 
 
@@ -35,24 +91,47 @@ Theo_vals <- reactive({
   data.frame(Generation = seq(1, input$gens), NewInfected = input$R0^seq(1, input$gens))
   })
 r_fig <- renderPlotly({
-  plot_ly(Theo_vals(), x = ~Generation, y = ~NewInfected, type = "scatter", mode = "lines+markers")
+  plot_ly(Theo_vals(), x = ~Generation, y = ~NewInfected, type = "scatter", mode = "lines+markers") %>%
+    layout(title = "R-naught Growth")
 })
 r_fig
 
-## Herd-Immunity
-## 1 - s > 1 - 1/R_0
-HIT_df <- data.frame(R0 = seq(1, 20), HIT = 1 - 1/R0)
+# Herd-Immunity
+# 1 - s > 1 - 1/R_0
+HIT_df <- data.frame(R0 = seq(1, 20), HIT = 1 - 1/seq(1, 20))
 
 ## Herd-Immunity Threshold
 HIT_fig <- renderPlotly({
-  plot_ly(HIT_fig, x = ~R0, y = ~HIT, type = "scatter", mode = "lines+markers")
+  plot_ly(HIT_df, x = ~R0, y = ~HIT, type = "scatter", mode = "lines+markers", name = "HIT") %>%
+    add_trace(x = ~input$R0, y = 1 - 1/ifelse(input$R0 >= 1, input$R0, 1), mode = "markers", name = "Threshold") %>%
+    layout(title = "Herd Immunity Threshold")
 })
 HIT_fig
-
 ```
 
+Row
+-----------------------------------------------------------------------
+```{r, echo = F}
+data <- reactive({
+fread("https://data.cdc.gov/resource/unsk-b7fc.csv", header = T) %>%
+    filter(location %in% abbr$Abbr) %>%
+    group_by(location) %>%
+    filter(date == max(date)) %>%
+    mutate(comp_pct_state = series_complete_pop_pct,
+           dose1_recip_pct_state = administered_dose1_pop_pct) %>%
+    filter(comp_pct_state > 0)
+})
 
+fig1 <- renderPlotly({
+  data() %>%
+  plot_ly(x =~location, y=~comp_pct_state, type = "bar", name = "Percent Completed") %>%
+    add_trace(y=~dose1_recip_pct_state, name = "Percent first Dose") %>%
+    layout(title = "Percent vaccinated by state", yaxis = list(title = 'Percent'), barmode = 'grouped', showlegend = F) %>%
+    add_segments(type = "line", x = "AK", xend = "WY", y = (1 - 1/ifelse(input$R0 >= 1, input$R0, 1))*100, yend = (1 - 1/ifelse(input$R0 >= 1, input$R0, 1))*100, line = list(color = "purple", dash = "dash"))
+})
+fig1
 
+```
 
 
 
