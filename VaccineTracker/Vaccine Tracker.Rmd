@@ -79,6 +79,12 @@ Inputs {.sidebar}
 ## R = R_0^(generation)
 sliderInput("R0", "R-Naught", min = 0, max = 20, value = 2.5, round = FALSE, step = .01)
 sliderInput("gens", "n-Generations", min = 1, max = 10, round = TRUE, value = 4)
+actionButton("reset", "Reset Inputs")
+
+observeEvent(input$reset, {
+    updateSelectizeInput("R0", "R-Naught", min = 0, max = 20, value = 2.5, round = FALSE, step = .01)
+    updateSelectizeInput("gens", "n-Generations", min = 1, max = 10, round = TRUE, value = 4)
+})
 
 ```
 
